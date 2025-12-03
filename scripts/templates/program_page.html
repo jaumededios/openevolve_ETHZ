@@ -61,7 +61,7 @@
         {% endmacro %}
         {#-- loop over every prompts --#}
         <div class="prompts">
-        {% for key, value in program_data.prompts.items() %}
+        {% for key, value in (program_data.prompts or {}).items() %}
             <section>
             <h3>{{ key|title }}</h3>
             {{ display(value) }}
@@ -69,8 +69,22 @@
         {% endfor %}
         </div>
     </ul>
-    {% if artifacts_json %}
+    {% if artifacts %}
     <h2>Artifacts:</h2>
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+        {% for key, val in artifacts.items() %}
+            <div>
+                <strong>{{ key }}</strong><br/>
+                {% if 'base64' in key|lower %}
+                    <img src="data:image/png;base64,{{ val }}" alt="{{ key }}" style="max-width: 600px; width: 100%; height: auto; border: 1px solid #ccc; border-radius: 4px;"/>
+                {% else %}
+                    <pre style="white-space: pre-wrap; word-break: break-word;">{{ val }}</pre>
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+    {% elif artifacts_json %}
+    <h2>Artifacts (raw):</h2>
     <pre style="white-space: pre-wrap; word-break: break-word;">{{ artifacts_json }}</pre>
     {% endif %}
 </body>

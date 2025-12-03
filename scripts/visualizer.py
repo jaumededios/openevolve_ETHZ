@@ -4,6 +4,7 @@ import glob
 import logging
 import shutil
 import re as _re
+import base64
 from flask import Flask, render_template, render_template_string, jsonify
 
 
@@ -114,13 +115,54 @@ def program_page(program_id):
     data = load_evolution_data(checkpoint_dir)
     program_data = next((p for p in data["nodes"] if p["id"] == program_id), None)
     program_data = {"code": "", "prompts": {}, **program_data}
+    if program_data.get("prompts") is None:
+        program_data["prompts"] = {}
     artifacts_json = program_data.get("artifacts_json", None)
+
+    artifacts = None
+    if artifacts_json:
+        try:
+            artifacts = json.loads(artifacts_json)
+        except Exception as exc:  # Keep visualization resilient to bad artifact blobs
+            logger.warning("Failed to decode artifacts_json for %s: %s", program_id, exc)
+            artifacts = {}
+
+    # Load artifacts from disk if present (e.g., large base64 images stored separately)
+    artifact_dir = program_data.get("artifact_dir")
+    if artifact_dir:
+        candidates = []
+        # as provided
+        candidates.append(artifact_dir)
+        # relative to checkpoint directory (older format)
+        if not os.path.isabs(artifact_dir):
+            candidates.append(os.path.normpath(os.path.join(checkpoint_dir, artifact_dir)))
+        # absolute from current working dir
+        candidates.append(os.path.abspath(artifact_dir))
+
+        chosen = next((p for p in candidates if os.path.isdir(p)), None)
+        if chosen:
+            artifacts = artifacts or {}
+            for fname in os.listdir(chosen):
+                fpath = os.path.join(chosen, fname)
+                if not os.path.isfile(fpath):
+                    continue
+                try:
+                    with open(fpath, "rb") as fh:
+                        content = fh.read()
+                    try:
+                        artifacts.setdefault(fname, content.decode("utf-8"))
+                    except UnicodeDecodeError:
+                        b64 = base64.b64encode(content).decode("ascii")
+                        artifacts.setdefault(f"{fname}_base64", b64)
+                except Exception as exc:
+                    logger.warning("Failed to load artifact file %s: %s", fpath, exc)
 
     return render_template(
         "program_page.html",
         program_data=program_data,
         checkpoint_dir=checkpoint_dir,
         artifacts_json=artifacts_json,
+        artifacts=artifacts,
     )
 
 

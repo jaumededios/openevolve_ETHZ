@@ -579,6 +579,10 @@ class PromptSampler:
 
         # Process all artifacts using .items()
         for key, value in artifacts.items():
+            # Skip large binary/base64-style artifacts to avoid sending them to LLM calls
+            if "base64" in key.lower():
+                continue
+
             content = self._safe_decode_artifact(value)
             # Truncate if too long
             if len(content) > self.config.max_artifact_bytes:
